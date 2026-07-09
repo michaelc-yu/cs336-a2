@@ -11,7 +11,7 @@ def benchmark_model(
     input_data,
     num_warmups,
     num_trials,
-    forward_only,
+    mode,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -19,10 +19,19 @@ def benchmark_model(
     model.to(device)
     input_data = input_data.to(device)
 
+    optimizer = torch.optim.AdamW(model.parameters())
+
     def execute_step():
         output = model(input_data).mean()
-        if not forward_only:
+        
+        if mode == "backward":
+            optimizer.zero_grad(set_to_none=True)
             output.backward()
+
+        elif mode == "train":
+            optimizer.zero_grad(set_to_none=True)
+            output.backward()
+            optimizer.step()
 
 
     for _ in range(num_warmups):
@@ -30,11 +39,14 @@ def benchmark_model(
     
     times = []
     for _ in range(num_trials):
+        if device == "cuda":
+            torch.cuda.synchronize()
+
         start_time = timeit.default_timer()
         
         execute_step()
 
-        if torch.cuda.is_available():
+        if device == "cuda":
             torch.cuda.synchronize()
         end_time = timeit.default_timer()
         elapsed_time = end_time - start_time
@@ -60,7 +72,11 @@ def main():
     parser.add_argument("--batch_size", type=int, required=True)
     parser.add_argument("--num_warmups", type=int, default=5)
     parser.add_argument("--num_trials", type=int, default=10)
-    parser.add_argument("--forward_only", action="store_true")
+    parser.add_argument(
+        "--mode",
+        choices=["forward", "backward", "train"],
+        default="forward",
+    )
 
     args = parser.parse_args()
     print(args)
@@ -86,7 +102,7 @@ def main():
         input_data,
         args.num_warmups,
         args.num_trials,
-        args.forward_only,
+        args.mode,
     )
     print(f"Mean time per step: {res['mean']:.6f} s")
     print(f"Std: {res['std']:.6f} s")
