@@ -4,6 +4,7 @@ from cs336_basics.model import BasicsTransformerLM
 import torch
 import timeit
 import statistics
+from contextlib import nullcontext
 
 
 def benchmark_model(
@@ -12,6 +13,7 @@ def benchmark_model(
     num_warmups,
     num_trials,
     mode,
+    use_mixed_precision,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -21,17 +23,28 @@ def benchmark_model(
 
     optimizer = torch.optim.AdamW(model.parameters())
 
+    mp_dtype = torch.bfloat16
+
+    if use_mixed_precision:
+        cast_context = torch.autocast(device_type=device, dtype=mp_dtype)
+    else:
+        nullcontext()
+
+
     def execute_step():
-        output = model(input_data).mean()
+        with cast_context:
+            output = model(input_data).mean()
         
         if mode == "backward":
-            optimizer.zero_grad(set_to_none=True)
-            output.backward()
+            with cast_context:
+                optimizer.zero_grad(set_to_none=True)
+                output.backward()
 
         elif mode == "train":
-            optimizer.zero_grad(set_to_none=True)
-            output.backward()
-            optimizer.step()
+            with cast_context:
+                optimizer.zero_grad(set_to_none=True)
+                output.backward()
+                optimizer.step()
 
 
     for _ in range(num_warmups):
@@ -77,6 +90,7 @@ def main():
         choices=["forward", "backward", "train"],
         default="forward",
     )
+    parser.add_argument("--use_mixed_precision", type=bool, default=False)
 
     args = parser.parse_args()
     print(args)
@@ -103,6 +117,7 @@ def main():
         args.num_warmups,
         args.num_trials,
         args.mode,
+        args.use_mixed_precision,
     )
     print(f"Mean time per step: {res['mean']:.6f} s")
     print(f"Std: {res['std']:.6f} s")
