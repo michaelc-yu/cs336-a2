@@ -20,7 +20,7 @@ class ToyModel(nn.Module):
         print(f"dtype after relu: {x.dtype}")
 
         x = self.ln(x)
-        print(f"dtype after linear: {x.dtype}")
+        print(f"dtype after layer norm: {x.dtype}")
 
         x = self.fc2(x)
         print(f"dtype of logits: {x.dtype}")
@@ -30,7 +30,7 @@ class ToyModel(nn.Module):
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model = ToyModel(64, 64)
+model = ToyModel(64, 64).to(device)
 input = torch.rand((8, 64), dtype=torch.float32).to(device)
 y = torch.rand((8, 64), dtype=torch.float32).to(device)
 
