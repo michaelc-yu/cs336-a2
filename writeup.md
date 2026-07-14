@@ -116,9 +116,9 @@ Using mixed-precision can reduce memory usage at larger context lengths, but som
 
 (d) For the model with context length 128, batch size of 4, and d_model = 1600:
 
-activation size = (B x T x d_model x bytes per element) / (1024^2)
-activation size = (4 x 128 x 1600 x 4) / (1024^2)
-activation size = 3.125 MiB
+* activation size = (B x T x d_model x bytes per element) / (1024^2)
+* activation size = (4 x 128 x 1600 x 4) / (1024^2)
+* activation size = 3.125 MiB
 
 (e) When reducing detail to only 10%, the largest allocation is of size 80 MiB. 
 Looking at the stacktrace, it looks like the allocation comes from tensor division operations (div_Tensor, PyNumber_TrueDivide). These could be temporary tensors created during layer norm or attention scaling operations.
