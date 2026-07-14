@@ -14,6 +14,7 @@ def benchmark_model(
     num_trials,
     mode,
     use_mixed_precision,
+    profile_memory,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -28,7 +29,7 @@ def benchmark_model(
     if use_mixed_precision:
         cast_context = torch.autocast(device_type=device, dtype=mp_dtype)
     else:
-        nullcontext()
+        cast_context = nullcontext()
 
 
     def execute_step():
@@ -49,7 +50,10 @@ def benchmark_model(
 
     for _ in range(num_warmups):
         execute_step()
-    
+
+    if profile_memory:
+        torch.cuda.memory._record_memory_history(max_entries=1000000)
+
     times = []
     for _ in range(num_trials):
         if device == "cuda":
@@ -64,6 +68,10 @@ def benchmark_model(
         end_time = timeit.default_timer()
         elapsed_time = end_time - start_time
         times.append(elapsed_time)
+
+    if profile_memory:
+        torch.cuda.memory._dump_snapshot("memory_snapshot.pickle")
+        torch.cuda.memory._record_memory_history(enabled=None)
 
     # return the average and standard deviation of times
     return {
@@ -91,6 +99,7 @@ def main():
         default="forward",
     )
     parser.add_argument("--use_mixed_precision", type=bool, default=False)
+    parser.add_argument("--profile_memory", type=bool, default=False)
 
     args = parser.parse_args()
     print(args)
@@ -118,6 +127,7 @@ def main():
         args.num_trials,
         args.mode,
         args.use_mixed_precision,
+        args.profile_memory,
     )
     print(f"Mean time per step: {res['mean']:.6f} s")
     print(f"Std: {res['std']:.6f} s")

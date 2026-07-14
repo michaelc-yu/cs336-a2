@@ -84,4 +84,44 @@ Fp16 has more precision bits but less exponent bits, whereas bf16 has less preci
 Mixed precision is consistently faster. For smaller models and smaller context lengths, mixed precision is only slightly faster (e.g., 0.066775 vs. 0.072913). For larger models and larger context lengths, mixed precision is much faster (e.g., 0.723469 vs. 0.388248).
 
 
+# Problem (memory_profiling)
+
+(a)
+Full training step with context length 128
+![memory_profile_train_step](./results/memory_profiling/forward_backward_optimizer_ctx_128.png)
+
+Forward only with context length 128
+![memory_profile_forward](./results/memory_profiling/forward_ctx_128.png)
+
+The forward only image has consistent sharp spikes then decreases. The sharp spikes are likely the forward passes. And since there is no backward pass, the activations are freed. For the full training step, the activations are not fully freed after each forward pass. Furthermore, there are some thin sharp spikes which could correspond to the optimizer steps.
+
+
+(b) Peak memory usage of forward step by context length:
+* 128: 6.6 GB
+* 256: 10.3 GB
+* 512: 19.8 GB
+
+Full training step:
+* 128: 18 GB
+
+(c) Mixed-precision peak memory usage of forward step by context length:
+* 128: 7.2 GB
+* 256: 9.6 GB
+* 512: 15.8 GB
+
+Full training step: 
+* 128: 17.9 GB
+
+Using mixed-precision can reduce memory usage at larger context lengths, but sometimes even increases memory usage at smaller context lengths. At larger context lengths, activation memory dominates so the memory savings from mixed-precision becomes significant. At smaller context lengths, the additional overhead from maintaining mixed-precision states and conversions can outweigh activation savings.
+
+(d) For the model with context length 128, batch size of 4, and d_model = 1600:
+
+activation size = (B x T x d_model x bytes per element) / (1024^2)
+activation size = (4 x 128 x 1600 x 4) / (1024^2)
+activation size = 3.125 MiB
+
+(e) When reducing detail to only 10%, the largest allocation is of size 80 MiB. 
+Looking at the stacktrace, it looks like the allocation comes from tensor division operations (div_Tensor, PyNumber_TrueDivide). These could be temporary tensors created during layer norm or attention scaling operations.
+
+
 
