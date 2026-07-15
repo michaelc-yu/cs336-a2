@@ -1,4 +1,4 @@
-
+import argparse
 from torch import nn
 import torch
 from einops import einsum
@@ -8,7 +8,7 @@ import csv
 from cs336_basics.model import scaled_dot_product_attention
 
 
-def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num_backward):
+def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num_backward, compile):
     """
     Benchmark time and memory usage for forward and backward passes attention implementation.
     Returns total forward time, total backward time, and the total memory allocated (MB) after forward passes.
@@ -22,9 +22,14 @@ def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num
 
     mask = torch.tril(torch.ones((seq_len, seq_len), device=device)).bool()
 
+    if compile:
+        attn_func = torch.compile(scaled_dot_product_attention)
+    else:
+        attn_func = scaled_dot_product_attention
+
     # warmup
     for _ in range(num_warmup):
-        out = scaled_dot_product_attention(Q, K, V, mask)
+        out = attn_func(Q, K, V, mask)
         loss = out.sum()
         loss.backward()
     
@@ -34,7 +39,7 @@ def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num
     # start 100 forward passes
     before_fwd_time = timeit.default_timer()
     for _ in range(num_forward):
-        out = scaled_dot_product_attention(Q, K, V, mask)
+        out = attn_func(Q, K, V, mask)
 
         if torch.cuda.is_available():
             torch.cuda.synchronize()
@@ -71,6 +76,9 @@ def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--compile", action="store_true")
+    args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -85,7 +93,7 @@ def main():
     for d_model in d_models:
         for seq_len in seq_lens:
             try:
-                total_fwd_time, total_bwd_time, mem_allocated_in_MB = benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num_backward)
+                total_fwd_time, total_bwd_time, mem_allocated_in_MB = benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num_backward, args.compile)
                 results.append({
                     "batch_size": batch_size,
                     "seq_len": seq_len,
@@ -93,6 +101,7 @@ def main():
                     "total_fwd_time": total_fwd_time,
                     "total_bwd_time": total_bwd_time,
                     "total_mem_allocated_in_MB_after_forward": mem_allocated_in_MB,
+                    "JIT_compiled": args.compile,
                     "exit_error": 0,
                 })
             except:
@@ -106,7 +115,9 @@ def main():
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
     
-    with open("benchmark_attention_results.csv", "w", newline="") as f:
+    out_file = "benchmark_attention_results.csv" if not args.compile else "benchmark_attention_results_compiled.csv"
+
+    with open(out_file, "w", newline="") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[
@@ -117,6 +128,7 @@ def main():
                 "total_bwd_time",
                 "total_mem_allocated_in_MB_after_forward",
                 "exit_error",
+                "JIT_compiled",
             ],
         )
         writer.writeheader()
