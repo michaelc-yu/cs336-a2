@@ -15,11 +15,17 @@ def benchmark_model(
     mode,
     use_mixed_precision,
     profile_memory,
+    compile,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     model = BasicsTransformerLM(**model_params)
     model.to(device)
+
+    if compile:
+        print("JIT compiled")
+        model = torch.compile(model)
+
     input_data = input_data.to(device)
 
     optimizer = torch.optim.AdamW(model.parameters())
@@ -100,6 +106,7 @@ def main():
     )
     parser.add_argument("--use_mixed_precision", type=bool, default=False)
     parser.add_argument("--profile_memory", type=bool, default=False)
+    parser.add_argument("--compile", action="store_true")
 
     args = parser.parse_args()
     print(args)
@@ -128,6 +135,7 @@ def main():
         args.mode,
         args.use_mixed_precision,
         args.profile_memory,
+        args.compile,
     )
     print(f"Mean time per step: {res['mean']:.6f} s")
     print(f"Std: {res['std']:.6f} s")

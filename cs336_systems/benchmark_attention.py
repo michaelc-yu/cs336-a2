@@ -23,6 +23,7 @@ def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num
     mask = torch.tril(torch.ones((seq_len, seq_len), device=device)).bool()
 
     if compile:
+        print("JIT compiled")
         attn_func = torch.compile(scaled_dot_product_attention)
     else:
         attn_func = scaled_dot_product_attention
