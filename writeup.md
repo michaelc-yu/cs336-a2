@@ -152,4 +152,55 @@ Looking at the stacktrace, it looks like the allocation comes from tensor divisi
 This was benchmarked on an A100 with 40GB RAM.
 At smaller sequence lengths, the memory after forward grows linearly with sequence length, but at larger sequence lengths, the memory after forward grows much faster. So the relationship is likely O(seq_len^2). One way to eliminate this memory cost is to recompute the attention activations during backward instead of storing it, trading off extra compute for saved memory.
 
+# Problem (torch_compile)
+
+(a)
+Benchmarked on A100 with 40GB RAM (same as above).
+
+| d_model | seq_len | baseline fwd (s) | compile fwd (s) | baseline bwd (s) | compile bwd (s) | compiled mem after fwd (MB) |
+|---------|---------|------------------|------------------|------------------|------------------|-------------------------------|
+| 16      | 256     | 0.0325           | 0.0241           | 0.0608           | 0.0468           | 21.22                          |
+| 16      | 1024    | 0.0725           | 0.0491           | 0.1672           | 0.1078           | 84.88                          |
+| 16      | 4096    | 0.7568           | 0.4390           | 1.8534           | 1.0870           | 1070.75                        |
+| 16      | 8192    | 2.8289           | 1.7051           | 6.8483           | 3.8852           | 4205.25                        |
+| 16      | 16384   | OOM              | 5.7394           | OOM              | 15.5994          | 16714.25                       |
+| 32      | 256     | 0.0309           | 0.0275           | 0.0621           | 0.0417           | 22.09                          |
+| 32      | 1024    | 0.0652           | 0.0485           | 0.1617           | 0.1089           | 88.38                          |
+| 32      | 4096    | 0.7833           | 0.5438           | 1.8849           | 1.1057           | 1084.75                        |
+| 32      | 8192    | 2.9185           | 1.9516           | 6.9421           | 3.9803           | 4233.25                        |
+| 32      | 16384   | OOM              | 6.2884           | OOM              | 15.9829          | 16770.25                       |
+| 64      | 256     | 0.0309           | 0.0285           | 0.0621           | 0.0434           | 23.84                          |
+| 64      | 1024    | 0.0682           | 0.0701           | 0.1657           | 0.1128           | 95.38                          |
+| 64      | 4096    | 0.8284           | 0.5183           | 1.9336           | 1.1511           | 1112.75                        |
+| 64      | 8192    | 3.1000           | 1.7442           | 7.1270           | 4.0755           | 4289.25                        |
+| 64      | 16384   | OOM              | 7.0036           | OOM              | 16.7186          | 16882.25                       |
+| 128     | 256     | 0.0309           | 0.0287           | 0.0582           | 0.0456           | 27.34                          |
+| 128     | 1024    | 0.0741           | 0.0763           | 0.1726           | 0.1218           | 109.38                         |
+| 128     | 4096    | 0.9141           | 0.6079           | 2.0257           | 1.2495           | 1168.75                        |
+| 128     | 8192    | 3.4436           | 2.0895           | 7.4871           | 4.4394           | 4401.25                        |
+| 128     | 16384   | OOM              | 8.3827           | OOM              | 18.1259          | 17106.25                       |
+
+
+(b)
+
+Full end-to-end training step (forward + backward + optimizer step), baseline vs. torch.compile
+
+| d_model | context_length | baseline mean_time (s) | compiled mean_time (s) |
+|---------|-----------------|-------------------------|--------------------------|
+| 768     | 128             | 0.072913                | 0.064861                 |
+| 768     | 256             | 0.120324                | 0.100844                 |
+| 768     | 512             | 0.241405                | 0.189355                 |
+| 1024    | 128             | 0.219400                | 0.201784                 |
+| 1024    | 256             | 0.369397                | 0.320342                 |
+| 1024    | 512             | 0.723469                | 0.581659                 |
+| 1280    | 128             | 0.518490                | 0.487466                 |
+| 1280    | 256             | OOM                     | 0.750421                 |
+| 1280    | 512             | OOM                     | OOM                       |
+| 1600    | 128             | OOM                     | OOM                       |
+| 1600    | 256             | OOM                     | OOM                       |
+| 1600    | 512             | OOM                     | OOM                       |
+| 2560    | 128             | OOM                     | OOM                       |
+| 2560    | 256             | OOM                     | OOM                       |
+| 2560    | 512             | OOM                     | OOM                       |
+
 

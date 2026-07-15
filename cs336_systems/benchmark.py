@@ -5,6 +5,7 @@ import torch
 import timeit
 import statistics
 from contextlib import nullcontext
+import torch._functorch.config
 
 
 def benchmark_model(
@@ -24,6 +25,7 @@ def benchmark_model(
 
     if compile:
         print("JIT compiled")
+        torch._functorch.config.donated_buffer = False
         model = torch.compile(model)
 
     input_data = input_data.to(device)

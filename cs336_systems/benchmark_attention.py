@@ -24,6 +24,7 @@ def benchmark(batch_size, seq_len, d_model, device, num_warmup, num_forward, num
 
     if compile:
         print("JIT compiled")
+        torch._functorch.config.donated_buffer = False
         attn_func = torch.compile(scaled_dot_product_attention)
     else:
         attn_func = scaled_dot_product_attention
