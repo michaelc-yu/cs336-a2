@@ -149,6 +149,7 @@ Looking at the stacktrace, it looks like the allocation comes from tensor divisi
 | 128     | 8192    | 3.4436       | 7.4871       | 4401.00             | OK     |
 | 128     | 16384   |              |              |                     | OOM    |
 
+This was benchmarked on an A100 with 40GB RAM.
 At smaller sequence lengths, the memory after forward grows linearly with sequence length, but at larger sequence lengths, the memory after forward grows much faster. So the relationship is likely O(seq_len^2). One way to eliminate this memory cost is to recompute the attention activations during backward instead of storing it, trading off extra compute for saved memory.
 
 
