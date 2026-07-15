@@ -124,4 +124,31 @@ Using mixed-precision can reduce memory usage at larger context lengths, but som
 Looking at the stacktrace, it looks like the allocation comes from tensor division operations (div_Tensor, PyNumber_TrueDivide). These could be temporary tensors created during layer norm or attention scaling operations.
 
 
+# Problem (pytorch_attention)
+
+| d_model | seq_len | fwd_time (s) | bwd_time (s) | mem after fwd (MB) | status |
+|---------|---------|--------------|--------------|---------------------|--------|
+| 16      | 256     | 0.0325       | 0.0608       | 21.21               | OK     |
+| 16      | 1024    | 0.0725       | 0.1672       | 84.84               | OK     |
+| 16      | 4096    | 0.7568       | 1.8534       | 1070.63             | OK     |
+| 16      | 8192    | 2.8289       | 6.8483       | 4205.00             | OK     |
+| 16      | 16384   |              |              |                     | OOM    |
+| 32      | 256     | 0.0309       | 0.0621       | 22.09               | OK     |
+| 32      | 1024    | 0.0652       | 0.1617       | 88.34               | OK     |
+| 32      | 4096    | 0.7833       | 1.8849       | 1084.63             | OK     |
+| 32      | 8192    | 2.9185       | 6.9421       | 4233.00             | OK     |
+| 32      | 16384   |              |              |                     | OOM    |
+| 64      | 256     | 0.0309       | 0.0621       | 23.84               | OK     |
+| 64      | 1024    | 0.0682       | 0.1657       | 95.34               | OK     |
+| 64      | 4096    | 0.8284       | 1.9336       | 1112.63             | OK     |
+| 64      | 8192    | 3.1000       | 7.1270       | 4289.00             | OK     |
+| 64      | 16384   |              |              |                     | OOM    |
+| 128     | 256     | 0.0309       | 0.0582       | 27.34               | OK     |
+| 128     | 1024    | 0.0741       | 0.1726       | 109.34              | OK     |
+| 128     | 4096    | 0.9141       | 2.0257       | 1168.63             | OK     |
+| 128     | 8192    | 3.4436       | 7.4871       | 4401.00             | OK     |
+| 128     | 16384   |              |              |                     | OOM    |
+
+At smaller sequence lengths, the memory after forward grows linearly with sequence length, but at larger sequence lengths, the memory after forward grows much faster. So the relationship is likely O(seq_len^2). One way to eliminate this memory cost is to recompute the attention activations during backward instead of storing it, trading off extra compute for saved memory.
+
 
