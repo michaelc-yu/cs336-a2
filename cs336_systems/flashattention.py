@@ -103,6 +103,7 @@ def flash_fwd_kernel(
     D: tl.constexpr,
     Q_TILE_SIZE: tl.constexpr,
     K_TILE_SIZE: tl.constexpr,
+    is_causal: tl.constexpr,
 ):
     # Program indices
     query_tile_index = tl.program_id(0)
@@ -173,6 +174,12 @@ def flash_fwd_kernel(
         V_j = tl.load(V_block_ptr, boundary_check=(0, 1))
 
         S_ij = tl.dot(Q_i, tl.trans(K_j)) * scale
+
+        if is_causal:
+            query_indices = query_tile_index * Q_TILE_SIZE + tl.arange(0, Q_TILE_SIZE)
+            key_indices = j * K_TILE_SIZE + tl.arange(0, K_TILE_SIZE)
+            mask = tl.reshape(query_indices, (Q_TILE_SIZE, 1)) >= tl.reshape(key_indices, (1, K_TILE_SIZE))
+            S_ij = tl.where(mask, S_ij, S_ij - 1e6)
 
         m_ij = tl.maximum(m_i, tl.max(S_ij, axis = -1))
         P_ij = tl.exp(S_ij - tl.reshape(m_ij, (Q_TILE_SIZE, 1)))
