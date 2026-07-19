@@ -202,6 +202,57 @@ def flash_fwd_kernel(
     tl.store(L_block_ptr, l_i_final, boundary_check=(0,))
 
 
+class FlashAttentionTriton(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, Q, K, V, is_causal=False):
+        # For one batch:
+        # Q has shape Nq x d
+        # K has shape Nk x d
+        # V has shape Nk x d
+        assert K.shape[1] == V.shape[1]
+
+        batch_sz, N_q, d = Q.shape
+        _, N_k , _ = K.shape
+        
+        assert N_q % B_Q == 0 # num rows in Q is divisible by tile size
+        assert N_k % B_K == 0 # num rows in K,V is divisible by tile size
+
+        T_q = math.ceil(N_q / B_Q)
+        T_k = math.ceil(N_k / B_K)
+
+        device = Q.device
+        dtype = Q.dtype
+
+        O = torch.empty((batch_sz, N_q, d), device=device, dtype=dtype)
+        L = torch.empty((batch_sz, N_q), device=device, dtype=dtype) # logsumexp
+
+        ctx.is_causal = is_causal
+        ctx.Q_TILE_SIZE = B_Q
+        ctx.K_TILE_SIZE = B_K
+
+        scale = 1 / math.sqrt(d)
+        flash_fwd_kernel[(math.ceil(N_q / ctx.Q_TILE_SIZE), batch_sz)](
+            Q, K, V, O, L,
+            Q.stride(0), Q.stride(1), Q.stride(2),
+            K.stride(0), K.stride(1), K.stride(2),
+            V.stride(0), V.stride(1), V.stride(2),
+            O.stride(0), O.stride(1), O.stride(2),
+            L.stride(0), L.stride(1),
+            N_q, N_k,
+            scale,
+            d,
+            B_Q,
+            B_K,
+            is_causal=ctx.is_causal
+        )
+
+        ctx.save_for_backward(Q, K, V, O, L)
+        
+        return O
+
+    @staticmethod
+    def backward():
+        raise NotImplementedError
 
 
 
