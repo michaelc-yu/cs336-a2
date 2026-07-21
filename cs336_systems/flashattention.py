@@ -58,6 +58,13 @@ class FlashAttentionPytorch(torch.autograd.Function):
                     V_j = V[b][k_start : k_end :]
 
                     S_ij = einsum(Q_i, K_j, "B_q d, B_k d -> B_q B_k") * scale
+
+                    if is_causal:
+                        query_indices = i * B_Q + torch.arange(B_Q, device=Q.device)
+                        key_indices = j * B_K + torch.arange(B_K, device=Q.device)
+                        mask = query_indices[:, None] >= key_indices[None, :]
+                        S_ij = torch.where(mask, S_ij, S_ij - 1e6)
+
                     prev_mij = m_ij
                     m_ij = torch.max(m_ij, torch.max(S_ij, dim=-1).values)
 
