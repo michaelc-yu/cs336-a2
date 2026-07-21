@@ -77,16 +77,42 @@ class FlashAttentionPytorch(torch.autograd.Function):
                 # Write Li to global memory as the i-th tile of L
                 L[b][q_start : q_end] = L_ij
 
+        ctx.is_causal = is_causal
         ctx.save_for_backward(L, Q, K, V, O)
 
         return O
 
 
     @staticmethod
-    def backward():
-        raise NotImplementedError
+    def backward(ctx, dO):
+        """
+        Inputs: Q, K, V, O, dO, L
+        Outputs: dQ, dK, dV
+        """
+        L, Q, K, V, O = ctx.saved_tensors
 
+        batch_sz, N_q, d = Q.shape
+        _, N_k, _ = K.shape
 
+        S = einsum(Q, K, "b q d, b k d -> b q k") / math.sqrt(d)
+
+        if ctx.is_causal:
+            mask = torch.tril(torch.ones(N_q, N_k, device=Q.device, dtype=Q.dtype))
+            S = S.masked_fill(mask == 0, -float('inf'))
+
+        # S is shape (b, q, k)
+        # L is shape (b, q)
+        P_ij = torch.exp(S - rearrange(L, "b q -> b q 1"))
+
+        dV = einsum(P_ij, dO, "b q k, b q d -> b k d")
+        dP = einsum(dO, V, "b q d, b v d -> b q v")
+
+        D = torch.sum(O * dO, dim=-1)
+        dS = P_ij * (dP - rearrange(D, "b q -> b q 1"))
+
+        dQ = einsum(dS, K, "b q k, b k d -> b q d") / math.sqrt(d)
+        dK = einsum(dS, Q, "b q k, b q d -> b k d") / math.sqrt(d)
+        return dQ, dK, dV
 
 
 @triton.jit
