@@ -31,7 +31,7 @@ def get_flashattention_autograd_function_triton() -> type:
         A class object (not an instance of the class)
     """
     # For example: return MyTritonFlashAttentionAutogradFunctionClass
-    return flashattention.flash_fwd_kernel
+    return flashattention.FlashAttentionTriton
 
 
 def get_ddp(module: torch.nn.Module) -> torch.nn.Module:
