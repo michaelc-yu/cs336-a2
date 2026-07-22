@@ -60,11 +60,9 @@ def benchmark(batch_sz, seq_len, emb_dim, precision, is_causal, mask):
     print(f"flashattn triton forward backward mean time: {mean_runtime_triton_fwd_bwd}")
 
     return {
-        "batch_size": batch_sz,
         "seq_len": seq_len,
         "d_model": emb_dim,
         "precision": str(precision).replace("torch.", ""),
-        "is_causal": is_causal,
         "pytorch_fwd_time_ms": mean_runtime_pytorch_fwd,
         "flash_fwd_time_ms": mean_runtime_triton_fwd,
         "pytorch_fwd_bwd_time_ms": mean_runtime_pytorch_fwd_bwd,
@@ -82,11 +80,9 @@ def main():
     output_file = "flashattention_benchmark_results.csv"
 
     fieldnames = [
-        "batch_size",
         "seq_len",
         "d_model",
         "precision",
-        "is_causal",
         "pytorch_fwd_time_ms",
         "flash_fwd_time_ms",
         "pytorch_fwd_bwd_time_ms",
@@ -109,11 +105,9 @@ def main():
 
                 except torch.cuda.OutOfMemoryError:
                     result = {
-                        "batch_size": batch_sz,
                         "seq_len": seq_len,
                         "d_model": emb_dim,
-                        "precision": str(precision),
-                        "is_causal": is_causal,
+                        "precision": str(precision).replace("torch.", ""),
                         "pytorch_fwd_time_ms": "",
                         "flash_fwd_time_ms": "",
                         "pytorch_fwd_bwd_time_ms": "",
@@ -125,11 +119,9 @@ def main():
 
                 except Exception as e:
                     result = {
-                        "batch_size": batch_sz,
                         "seq_len": seq_len,
                         "d_model": emb_dim,
-                        "precision": str(precision),
-                        "is_causal": is_causal,
+                        "precision": str(precision).replace("torch.", ""),
                         "pytorch_fwd_time_ms": "",
                         "flash_fwd_time_ms": "",
                         "pytorch_fwd_bwd_time_ms": "",

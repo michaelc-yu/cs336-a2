@@ -227,7 +227,7 @@ def flash_fwd_kernel(
         P_ij = tl.exp(S_ij - tl.reshape(m_ij, (Q_TILE_SIZE, 1)))
 
         l_ij = tl.exp(m_i - m_ij) * l_i + tl.sum(P_ij, axis=-1)
-        O_ij = tl.reshape(tl.exp(m_i - m_ij), (Q_TILE_SIZE, 1)) * O_i + tl.dot(P_ij, V_j)
+        O_ij = tl.reshape(tl.exp(m_i - m_ij), (Q_TILE_SIZE, 1)) * O_i + tl.dot(P_ij.to(V_j.dtype), V_j)
 
         # Update l_i, O_i, m_i
         l_i = l_ij
@@ -239,6 +239,9 @@ def flash_fwd_kernel(
 
     O_i_final = tl.reshape(1 / l_i, (Q_TILE_SIZE, 1)) * O_i
     l_i_final = m_i + tl.log(l_i)
+
+    O_i_final = O_i_final.to(Q_i.dtype)
+    l_i_final = l_i_final.to(Q_i.dtype)
 
     tl.store(O_block_ptr, O_i_final, boundary_check=(0, 1))
     tl.store(L_block_ptr, l_i_final, boundary_check=(0,))
