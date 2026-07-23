@@ -41,7 +41,8 @@ def all_reduce_benchmark(rank, world_size, data_size, backend):
     
     end = timeit.default_timer()
     elapsed_time = end - start
-    print(f"Data size (MB): {data_size}, Rank {rank}, Time (s): {elapsed_time}")
+    if rank == 0:
+        print(f"Data size (MB): {data_size}, Num process: {world_size}, Time (s): {elapsed_time}")
 
     dist.destroy_process_group()
 

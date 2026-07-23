@@ -305,3 +305,25 @@ Speedup tends to decrease as d_model increases. This is because as d_model incre
 is also larger than the forward + backward speedup, since the backward pass always uses plain pytorch whereas the forward benefits from triton.
 
 
+# Problem (distributed_communication_single_node)
+
+| data_size (MB) | num_processes | backend | total_time_10_steps (s) | avg_time_per_call (s) |
+|----------------|---------------|---------|--------------------------|-------------------------|
+| 1              | 2             | gloo    | 0.004235                 | 0.000424                |
+| 1              | 4             | gloo    | 0.009877                 | 0.000988                |
+| 1              | 6             | gloo    | 0.011217                 | 0.001122                |
+| 10             | 2             | gloo    | 0.028544                 | 0.002854                |
+| 10             | 4             | gloo    | 0.049638                 | 0.004964                |
+| 10             | 6             | gloo    | 0.060519                 | 0.006052                |
+| 100            | 2             | gloo    | 0.356358                 | 0.035636                |
+| 100            | 4             | gloo    | 0.541723                 | 0.054172                |
+| 100            | 6             | gloo    | 0.627819                 | 0.062782                |
+| 1024           | 2             | gloo    | 3.559723                 | 0.355972                |
+| 1024           | 4             | gloo    | 5.336685                 | 0.533669                |
+| 1024           | 6             | gloo    | 6.362074                 | 0.636207                |
+
+Increasing the number of processes increases the total time taken because of latency of more communication rounds. Looks like gloo uses a ring-allreduce
+algorithm that needs ~2(P-1) sequential hops. Another observation is that the relative slowdown from 2 to 6 processes is larger at smaller data sizes (~2.6x) 
+and less at larger data sizes (~1.8x). This could be because at larger data sizes the total time is dominated more by the data size and not the latency term
+(more amortization).
+
