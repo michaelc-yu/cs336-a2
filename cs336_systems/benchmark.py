@@ -106,8 +106,8 @@ def main():
         choices=["forward", "backward", "train"],
         default="forward",
     )
-    parser.add_argument("--use_mixed_precision", type=bool, default=False)
-    parser.add_argument("--profile_memory", type=bool, default=False)
+    parser.add_argument("--use_mixed_precision", action='store_true')
+    parser.add_argument("--profile_memory", action='store_true')
     parser.add_argument("--compile", action="store_true")
 
     args = parser.parse_args()

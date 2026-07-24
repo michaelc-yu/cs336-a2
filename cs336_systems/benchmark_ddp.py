@@ -1,10 +1,11 @@
 import torch
 import os
 import timeit
+import argparse
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from cs336_basics.model import BasicsTransformerLM
-from cs336_systems.ddp import DDPNaive
+from cs336_systems.ddp import DDPNaive, DDPBatch
 
 
 NUM_WARMUPS = 5
@@ -16,7 +17,7 @@ def setup(rank, world_size, backend):
     dist.init_process_group(backend, rank=rank, world_size=world_size)
 
 
-def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, num_steps):
+def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, batch_ddp: bool):
 
     setup(rank, world_size, backend)
 
@@ -31,7 +32,10 @@ def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, num
     model = BasicsTransformerLM(**model_params)
     model.to(device)
 
-    ddpmodel = DDPNaive(model)
+    if batch_ddp:
+        ddpmodel = DDPBatch(model)
+    else:
+        ddpmodel = DDPNaive(model)
 
     local_batch = input_data.shape[0] // world_size
     batch_start = rank * local_batch
@@ -74,7 +78,7 @@ def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, num
         start_sync_time = timeit.default_timer()
 
         ddpmodel.finish_gradient_synchronization()
-        
+
         if use_gpu:
             torch.cuda.synchronize()
         
@@ -86,18 +90,22 @@ def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, num
 
     end_time = timeit.default_timer()
     total_time = end_time - start_time
-    print(f"Total training time for {num_steps} steps: {total_time}, total gradient sync time: {total_sync_time}, fraction: {total_sync_time / total_time}")
+    print(f"Total training time for {NUM_STEPS} steps: {total_time}, total gradient sync time: {total_sync_time}, fraction: {total_sync_time / total_time}")
 
     dist.destroy_process_group()
 
 
 def benchmark():
-    world_size = 2
-    batch_sz = 128
-    backend = "nccl"
-    num_steps = 10
+    parser = argparse.ArgumentParser()
 
-    assert batch_sz % world_size == 0
+    parser.add_argument("--world_size", type=int, default=2)
+    parser.add_argument("--batch_sz", type=int, default=128)
+    parser.add_argument("--backend", type=str, default='nccl')
+    parser.add_argument("--batch_ddp", action='store_true')
+
+    args = parser.parse_args()
+
+    assert args.batch_sz % args.world_size == 0
 
     model_params = {
         "vocab_size": 10000,
@@ -112,10 +120,10 @@ def benchmark():
     input_data = torch.randint(
         low=0,
         high=10000,
-        size=(batch_sz, 128),
+        size=(args.batch_sz, 128),
     )
 
-    mp.spawn(fn=benchmark_naive_ddp, args=(world_size, model_params, input_data, backend, num_steps), nprocs=world_size, join=True)
+    mp.spawn(fn=benchmark_naive_ddp, args=(args.world_size, model_params, input_data, args.backend, args.batch_ddp), nprocs=args.world_size, join=True)
 
 
 if __name__ == "__main__":
