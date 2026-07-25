@@ -34,3 +34,34 @@ class DDPBatch(DDPNaive):
         for original_grad, synced_grad in zip(gradients, synced_grads):
             original_grad.copy_(synced_grad)
 
+
+class DDPOverlapIndividualParameters(nn.Module):
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+        self.handles = []
+
+        def async_all_reduce(param):
+            handle = dist.all_reduce(param.grad, op=dist.ReduceOp.SUM, async_op=True)
+            self.handles.append(handle)
+
+        for param in module.parameters():
+            if param.requires_grad:
+                param.register_post_accumulate_grad_hook(async_all_reduce)
+
+        for param in module.parameters():
+            dist.broadcast(param.data, src=0)
+
+    def forward(self, *inputs, **kwargs):
+        return self.module(*inputs, **kwargs)
+
+    def finish_gradient_synchronization(self):
+        for handle in self.handles:
+            handle.wait()
+        self.handles.clear()
+
+        for param in self.module.parameters():
+            if param.requires_grad:
+                param.grad /= dist.get_world_size()
+
+

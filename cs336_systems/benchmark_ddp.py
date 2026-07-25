@@ -5,7 +5,7 @@ import argparse
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from cs336_basics.model import BasicsTransformerLM
-from cs336_systems.ddp import DDPNaive, DDPBatch
+from cs336_systems.ddp import DDPNaive, DDPBatch, DDPOverlapIndividualParameters
 
 
 NUM_WARMUPS = 5
@@ -17,7 +17,7 @@ def setup(rank, world_size, backend):
     dist.init_process_group(backend, rank=rank, world_size=world_size)
 
 
-def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, batch_ddp: bool):
+def benchmark_ddp(rank, world_size, model_params, input_data, backend, mode: str):
 
     setup(rank, world_size, backend)
 
@@ -32,9 +32,11 @@ def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, bat
     model = BasicsTransformerLM(**model_params)
     model.to(device)
 
-    if batch_ddp:
+    if mode == 'batch_ddp':
         ddpmodel = DDPBatch(model)
-    else:
+    elif mode == 'overlap_params':
+        ddpmodel = DDPOverlapIndividualParameters(model)
+    elif mode == 'naive':
         ddpmodel = DDPNaive(model)
 
     local_batch = input_data.shape[0] // world_size
@@ -95,13 +97,17 @@ def benchmark_naive_ddp(rank, world_size, model_params, input_data, backend, bat
     dist.destroy_process_group()
 
 
-def benchmark():
+def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--world_size", type=int, default=2)
     parser.add_argument("--batch_sz", type=int, default=128)
     parser.add_argument("--backend", type=str, default='nccl')
-    parser.add_argument("--batch_ddp", action='store_true')
+    parser.add_argument(
+        '--mode',
+        choices=['batch_ddp', 'overlap_params', 'naive'],
+        default='naive',
+    )
 
     args = parser.parse_args()
 
@@ -123,8 +129,8 @@ def benchmark():
         size=(args.batch_sz, 128),
     )
 
-    mp.spawn(fn=benchmark_naive_ddp, args=(args.world_size, model_params, input_data, args.backend, args.batch_ddp), nprocs=args.world_size, join=True)
+    mp.spawn(fn=benchmark_ddp, args=(args.world_size, model_params, input_data, args.backend, args.mode), nprocs=args.world_size, join=True)
 
 
 if __name__ == "__main__":
-    benchmark()
+    main()
