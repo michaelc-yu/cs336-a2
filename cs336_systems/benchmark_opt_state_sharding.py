@@ -82,7 +82,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--world_size", type=int, default=2)
-    parser.add_argument("--batch_sz", type=int, default=128)
+    parser.add_argument("--batch_sz", type=int, default=4)
     parser.add_argument("--backend", type=str, default='nccl')
     parser.add_argument("--shard_optimizer", action='store_true')
 

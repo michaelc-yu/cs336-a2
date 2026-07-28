@@ -328,6 +328,72 @@ and less at larger data sizes (~1.8x). This could be because at larger data size
 (more amortization).
 
 
+# Problem (naive_ddp_benchmarking)
+
+Benchmarked on 2× NVIDIA RTX PRO 6000, each with 96GB of VRAM.
+Used a batch size of 4. Used 5 warmup steps and benchmarked 10 steps.
+
+Total training time for 10 steps: 6.839635513955727, total gradient sync time: 3.7077622688375413, fraction: 0.5420993942253428
+
+Total training time for 10 steps: 6.839746640063822, total gradient sync time: 3.7148574516177177, fraction: 0.5431279325257367
+
+
+# Problem (minimal_ddp_flat_benchmarking)
+
+Benchmarked on 2× NVIDIA RTX PRO 6000, each with 96GB of VRAM.
+Used a batch size of 4. Used 5 warmup steps and benchmarked 10 steps.
+
+Total training time for 10 steps: 6.984030875144526, total gradient sync time: 3.85113317030482, fraction: 0.5514198375053898
+
+Total training time for 10 steps: 6.984072948107496, total gradient sync time: 3.85996251180768, fraction: 0.5526807266315324
+
+
+Compared to individually communicating gradients, both total training time and total gradient sync time are only slightly higher, 
+and the fraction of time for gradient syncing is about the same.
+
+
+# Problem (ddp_overlap_individual_parameters_benchmarking)
+
+Benchmarked on 2× NVIDIA RTX PRO 6000, each with 96GB of VRAM.
+Used a batch size of 4. Used 5 warmup steps and benchmarked 10 steps.
+
+Total training time for 10 steps: 6.190566919045523, total gradient sync time: 0.19393182988278568, fraction: 0.031326990309424936
+
+Total training time for 10 steps: 6.190588270081207, total gradient sync time: 0.19423204031772912, fraction: 0.03137537691796473
+
+
+Overlapping backward pass computation with individual parameter gradients communication slightly reduces total training time from ~6.9s for 10 iterations to ~6.2s.
+The total gradient sync time drastically reduces, from ~3.8s to ~0.19s, taking up only about 3% of total training time.
+
+
+# Problem (optimizer_state_sharding_accounting)
+
+(a) Benchmarked on 2× NVIDIA RTX PRO 6000, each with 96GB of VRAM, with batch size of 4
+
+Without optimizer state sharding:
+* Peak memory after model init: 13762217984
+* Peak memory before optimizer step: 27412481536
+* Peak memory after optimizer step: 68690606592
+
+Total training time for 1 step: 0.5542899090796709
+
+With optimizer state sharding:
+* Peak memory after model init: 13762217984
+* Peak memory before optimizer step: 27412481536
+* Peak memory after optimizer step: 47739075072
+
+Total training time for 1 step: 0.6194548720959574
+
+
+(b) Used 5 warmup steps and benchmarked 10 steps.
+
+With optimizer state sharding:
+* Total training time for 10 steps: 4.276428773067892
+
+Without optimizer state sharding:
+* Total training time for 10 steps: 6.411994853056967
+
+
 # Problem (alternate_ring_all_reduce)
 
 The modulo notations are just describing which tensor is being passed around at each step. With 4 GPUs:
