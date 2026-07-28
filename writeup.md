@@ -359,19 +359,19 @@ The algorithm takes (N − 1) * (S / W) seconds because it performs N−1 commun
 
 Each device processes:
 
-$B_i = B / N_{DP}$
+$B_i = B / N_{\text{DP}}$
 
 The backward pass has 6 matrix multiplications:
 
-* $dz = dyW_3^T$: $2B_iDD_{FF}$
-* $dx = dx_1W_1^T+dx_2W_2^T$: $4B_iDD_{FF}$
-* $dW_3, dW_2, dW_1$: $3(2B_iDD_{FF})$
+* $dz = dyW_3^T$: $2B_iDD_{\text{FF}}$
+* $dx = dx_1W_1^T+dx_2W_2^T$: $4B_iDD_{\text{FF}}$
+* $dW_3, dW_2, dW_1$: $3(2B_iDD_{\text{FF}})$
 
-Total: $(2+4+6)B_iDD_{FF} = 12B_iDD_{FF}$
+Total: $(2+4+6)B_iDD_{\text{FF}} = 12B_iDD_{\text{FF}}$
 
-Divide by $N_{DP}$:
+Divide by $N_{\text{DP}}$:
 
-$12BDD_{FF} / N_{DP}$
+$12BDD_{\text{FF}} / N_{\text{DP}}$
 
 (b)
 
@@ -379,15 +379,15 @@ Gradients: $dW_1, dW_2, dW_3$
 
 Each has $DD_{FF}$ parameters, so total gradient size in FP16:
 
-$S = 3(DD_{FF})(2) = 6DD_{FF}$ bytes
+$S = 3(DD_{\text{FF}})(2) = 6DD_{\text{FF}}$ bytes
 
 Ring all-reduce time:
 
-$T_{comm} = 2 \cdot (N_{DP}-1)/N_{DP} \cdot S/W$
+$T_{comm} = 2 \cdot (N_{\text{DP}}-1)/N_{\text{DP}} \cdot S/W$
 
 Therefore:
 
-$T_{comm} = 12(N_{DP}-1)DD_{FF} / (N_{DP}W)$
+$T_{comm} = 12(N_{\text{DP}}-1)DD_{\text{FF}} / (N_{\text{DP}}W)$
 
 (c)
 
@@ -395,13 +395,13 @@ Communication dominates when:
 
 $T_{comm} > T_{compute}$
 
-$12(N_{DP}-1)DD_{FF} / (N_{DP}W) > 12BDD_{FF} / (N_{DP}C)$
+$12(N_{\text{DP}}-1)DD_{\text{FF}} / (N_{\text{DP}}W) > 12BDD_{\text{FF}} / (N_{\text{DP}}C)$
 
-$(N_{DP}-1)/W > B/C$
+$(N_{\text{DP}}-1)/W > B/C$
 
 Therefore:
 
-$N_{DP} > 1 + BW/C$
+$N_{\text{DP}} > 1 + BW/C$
 
 At this point, communication becomes the bottleneck because compute decreases with batch sharding while gradient communication remains roughly constant.
 
