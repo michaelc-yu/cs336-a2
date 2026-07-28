@@ -327,3 +327,81 @@ algorithm that needs ~2(P-1) sequential hops. Another observation is that the re
 and less at larger data sizes (~1.8x). This could be because at larger data sizes the total time is dominated more by the data size and not the latency term
 (more amortization).
 
+
+# Problem (alternate_ring_all_reduce)
+
+The modulo notations are just describing which tensor is being passed around at each step. With 4 GPUs:
+
+At step t=1: each GPU sends its own tensor i.
+
+At step t=2:
+* GPU0 sends $x^(3)$
+* GPU1 sends $x^(0)$
+* GPU2 sends $x^(1)$
+* GPU3 sends $x^(2)$
+
+Each round:
+* data sent = S
+* bandwidth = W
+
+Time per round = S / W
+
+Number of rounds: N − 1
+
+Therefore total time = (N − 1) * (S / W)
+
+The algorithm takes (N − 1) * (S / W) seconds because it performs N−1 communication steps, and in each step every device sends an entire tensor of size S at bandwidth W.
+
+
+# Problem (data_parallel_calcs)
+
+(a)
+
+Each device processes:
+
+$B_i = B / N_{DP}$
+
+The backward pass has 6 matrix multiplications:
+
+* $dz = dyW_3^T$: $2B_iDD_{FF}$
+* $dx = dx_1W_1^T+dx_2W_2^T$: $4B_iDD_{FF}$
+* $dW_3, dW_2, dW_1$: $3(2B_iDD_{FF})$
+
+Total: $(2+4+6)B_iDD_{FF} = 12B_iDD_{FF}$
+
+Divide by $N_{DP}$:
+
+$12BDD_{FF} / N_{DP}$
+
+(b)
+
+Gradients: $dW_1, dW_2, dW_3$
+
+Each has $DD_{FF}$ parameters, so total gradient size in FP16:
+
+$S = 3(DD_{FF})(2) = 6DD_{FF}$ bytes
+
+Ring all-reduce time:
+
+$T_{comm} = 2 \cdot (N_{DP}-1)/N_{DP} \cdot S/W$
+
+Therefore:
+
+$T_{comm} = 12(N_{DP}-1)DD_{FF} / (N_{DP}W)$
+
+(c)
+
+Communication dominates when:
+
+$T_{comm} > T_{compute}$
+
+$12(N_{DP}-1)DD_{FF} / (N_{DP}W) > 12BDD_{FF} / (N_{DP}C)$
+
+$(N_{DP}-1)/W > B/C$
+
+Therefore:
+
+$N_{DP} > 1 + BW/C$
+
+At this point, communication becomes the bottleneck because compute decreases with batch sharding while gradient communication remains roughly constant.
+
