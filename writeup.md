@@ -394,6 +394,11 @@ Without optimizer state sharding:
 * Total training time for 10 steps: 6.411994853056967
 
 
+(c) Our approach does a round-robin strategy for dividing up tensors such that each rank gets the same count of tensors, but not necessarily
+the same total size of tensors or parameters. ZeRO stage 1 partitioning balances by size of total tensors and parameters.
+For broadcasting gradients, we loop through all parameters and call dist.broadcast once for each param, taking up number of params separate calls. ZeRO stage 1 flattens all parameters into one large contiguous buffer before performing communication.
+
+
 # Problem (alternate_ring_all_reduce)
 
 The modulo notations are just describing which tensor is being passed around at each step. With 4 GPUs:
